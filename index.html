@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiMoPlanner — Weekly Schedule Planner</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --font:'Outfit',system-ui,sans-serif;--font-display:'Space Grotesk',system-ui,sans-serif;--font-mono:'JetBrains Mono',monospace;
+  --bg:#08090a;--panel:#0f1012;--panel2:#16181c;--panel3:#1c1f24;
+  --text:#f0f0f5;--muted:#7a7a90;--acc:#6366f1;--acc2:#8b5cf6;--acc3:#ec4899;
+  --good:#22c55e;--warn:#f59e0b;--bad:#ef4444;
+  --line:rgba(255,255,255,.06);--line2:rgba(255,255,255,.12);
+  --radius:12px;--radius-sm:8px;--radius-xs:6px;
+}
+[data-theme="light"]{
+  --bg:#f8f7f4;--panel:#ffffff;--panel2:#f2f1ed;--panel3:#e8e7e3;
+  --text:#0a0a14;--muted:#5a5a70;--acc:#4f46e5;--acc2:#7c3aed;--acc3:#db2777;
+  --line:rgba(0,0,0,.08);--line2:rgba(0,0,0,.15);
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px}
+body{display:flex;flex-direction:column}
+button{font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--text);font-size:12px}
+input,select,textarea{font-family:var(--font);font-size:12px;background:var(--panel2);color:var(--text);border:1px solid var(--line2);border-radius:var(--radius-xs);padding:6px 10px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--acc)}
+textarea{resize:vertical;min-height:40px}
+
+nav{display:flex;align-items:center;gap:10px;padding:6px 14px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;z-index:10;flex-wrap:wrap}
+.nav-logo{font-family:var(--font-display);font-weight:700;font-size:15px;letter-spacing:-.03em;background:linear-gradient(135deg,#6366f1,#8b5cf6,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-sep{width:1px;height:20px;background:var(--line2)}
+.nav-btn{padding:5px 10px;border-radius:var(--radius-xs);background:var(--panel2);border:1px solid var(--line);transition:all .15s;font-size:11px;font-weight:500;white-space:nowrap}
+.nav-btn:hover{border-color:var(--acc);color:var(--acc)}
+.nav-btn.active{background:var(--acc);color:#fff;border-color:var(--acc)}
+.nav-spacer{flex:1}
+.icon-btn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-xs);background:var(--panel2);border:1px solid var(--line);font-size:14px;transition:all .15s}
+.icon-btn:hover{border-color:var(--acc)}
+.theme-toggle::before{content:'🌙'}
+[data-theme="light"] .theme-toggle::before{content:'☀️'}
+
+.main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.week-header{display:grid;grid-template-columns:50px repeat(7,1fr);background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0}
+.week-header .corner{padding:8px;font-family:var(--font-mono);font-size:10px;color:var(--muted);text-align:center;border-right:1px solid var(--line)}
+.week-header .day-col{padding:8px 4px;text-align:center;border-right:1px solid var(--line);cursor:pointer;transition:background .15s}
+.week-header .day-col:hover{background:var(--panel2)}
+.week-header .day-col.today{background:rgba(99,102,241,.08)}
+.week-header .day-name{font-family:var(--font-display);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.week-header .day-date{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:2px}
+.week-header .day-col.today .day-date{color:var(--acc);font-weight:600}
+
+.grid-scroll{flex:1;overflow-y:auto;overflow-x:hidden}
+.week-grid{display:grid;grid-template-columns:50px repeat(7,1fr);position:relative}
+.time-cell{padding:4px 6px;font-family:var(--font-mono);font-size:10px;color:var(--muted);text-align:right;border-right:1px solid var(--line);border-bottom:1px solid var(--line);height:48px;display:flex;align-items:flex-start;justify-content:flex-end}
+.hour-cell{border-right:1px solid var(--line);border-bottom:1px solid var(--line);height:48px;position:relative;cursor:pointer;transition:background .1s}
+.hour-cell:hover{background:rgba(99,102,241,.03)}
+.hour-cell.today{background:rgba(99,102,241,.02)}
+.hour-cell.half{border-bottom:1px dashed var(--line)}
+
+.event-block{position:absolute;left:2px;right:2px;border-radius:var(--radius-xs);padding:3px 6px;font-size:10px;overflow:hidden;cursor:grab;z-index:2;border-left:3px solid;transition:box-shadow .15s}
+.event-block:hover{box-shadow:0 2px 12px rgba(0,0,0,.3);z-index:3}
+.event-block .ev-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.event-block .ev-time{font-family:var(--font-mono);font-size:9px;opacity:.7}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:none;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line2);border-radius:var(--radius);padding:20px;width:380px;max-width:90vw;max-height:80vh;overflow-y:auto}
+.modal h3{font-family:var(--font-display);font-size:16px;margin-bottom:12px}
+.form-row{margin-bottom:10px}
+.form-row label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:500}
+.form-row input,.form-row select,.form-row textarea{width:100%}
+.form-row-inline{display:flex;gap:8px}
+.form-row-inline .form-row{flex:1}
+.color-options{display:flex;gap:6px;flex-wrap:wrap}
+.color-opt{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:border-color .15s}
+.color-opt:hover,.color-opt.active{border-color:var(--text)}
+.btn-row{display:flex;gap:8px;margin-top:14px;justify-content:flex-end}
+.btn-primary{padding:6px 14px;border-radius:var(--radius-xs);background:var(--acc);color:#fff;font-weight:500;border:1px solid var(--acc)}
+.btn-primary:hover{opacity:.9}
+.btn-ghost{padding:6px 14px;border-radius:var(--radius-xs);border:1px solid var(--line)}
+.btn-ghost:hover{border-color:var(--line2)}
+.btn-danger{padding:6px 14px;border-radius:var(--radius-xs);background:var(--bad);color:#fff;border:1px solid var(--bad)}
+
+.status-bar{display:flex;align-items:center;gap:12px;padding:3px 14px;background:var(--panel);border-top:1px solid var(--line);font-family:var(--font-mono);font-size:10px;color:var(--muted);flex-shrink:0}
+.toast{position:fixed;bottom:50px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--panel3);color:var(--text);padding:8px 16px;border-radius:var(--radius);border:1px solid var(--line2);font-size:12px;z-index:999;opacity:0;transition:all .3s;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:700px){
+  .week-header,.week-grid{grid-template-columns:40px repeat(7,1fr)}
+  .time-cell{font-size:8px;padding:2px}
+  .day-name{font-size:9px!important}
+  .event-block{font-size:8px;padding:2px 4px}
+}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+</style>
+</head>
+<body>
+<nav>
+  <span class="nav-logo">📅 MiMoPlanner</span>
+  <div class="nav-sep"></div>
+  <button class="nav-btn" onclick="changeWeek(-1)">← Prev</button>
+  <button class="nav-btn active" onclick="goToday()">Today</button>
+  <button class="nav-btn" onclick="changeWeek(1)">Next →</button>
+  <span class="nav-sep"></span>
+  <span style="font-size:12px;color:var(--muted)" id="weekLabel">—</span>
+  <span class="nav-spacer"></span>
+  <button class="nav-btn" onclick="exportJSON()">📤 Export</button>
+  <button class="nav-btn" onclick="importJSON()">📥 Import</button>
+  <button class="nav-btn" onclick="clearAll()">🗑 Clear</button>
+  <button class="icon-btn theme-toggle" onclick="toggleTheme()"></button>
+</nav>
+
+<div class="main">
+  <div class="week-header" id="weekHeader"></div>
+  <div class="grid-scroll" id="gridScroll">
+    <div class="week-grid" id="weekGrid"></div>
+  </div>
+</div>
+
+<div class="status-bar">
+  <span id="statusEvents">0 events</span>
+  <span style="flex:1"></span>
+  <span>MiMoPlanner v1.0 · Zero API</span>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="modalTitle">New Event</h3>
+    <div class="form-row">
+      <label>Title</label>
+      <input type="text" id="evTitle" placeholder="Meeting, Kuliah, Olahraga...">
+    </div>
+    <div class="form-row-inline">
+      <div class="form-row">
+        <label>Day</label>
+        <select id="evDay"></select>
+      </div>
+      <div class="form-row">
+        <label>Start</label>
+        <select id="evStart"></select>
+      </div>
+      <div class="form-row">
+        <label>End</label>
+        <select id="evEnd"></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Category</label>
+      <div class="color-options" id="colorOptions"></div>
+    </div>
+    <div class="form-row">
+      <label>Notes (optional)</label>
+      <textarea id="evNotes" rows="2" placeholder="Tambahkan catatan..."></textarea>
+    </div>
+    <div class="form-row">
+      <label><input type="checkbox" id="evRecur"> Repeat weekly</label>
+    </div>
+    <div class="form-row">
+      <label><input type="checkbox" id="evReminder"> Reminder (5 min before)</label>
+    </div>
+    <input type="hidden" id="evId">
+    <div class="btn-row">
+      <button class="btn-danger" id="btnDelete" onclick="deleteEvent()" style="display:none">Delete</button>
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveEvent()">Save</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(this.files[0])">
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════
+const CATEGORIES = [
+  {id:'work',     name:'Work',     color:'#6366f1'},
+  {id:'study',    name:'Study',    color:'#3b82f6'},
+  {id:'exercise', name:'Exercise', color:'#22c55e'},
+  {id:'social',   name:'Social',   color:'#f59e0b'},
+  {id:'health',   name:'Health',   color:'#ef4444'},
+  {id:'hobby',    name:'Hobby',    color:'#ec4899'},
+  {id:'errands',  name:'Errands',  color:'#8b5cf6'},
+  {id:'other',    name:'Other',    color:'#6b7280'},
+];
+
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DAYS_ID = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+const HOURS = Array.from({length:24}, (_, i) => i);
+
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+let events = [];
+let currentWeekStart = getWeekStart(new Date());
+let selectedCategory = 'work';
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+function init() {
+  loadEvents();
+  populateFormOptions();
+  renderWeek();
+  checkReminders();
+  setInterval(checkReminders, 60000);
+}
+
+function getWeekStart(d) {
+  const dt = new Date(d);
+  dt.setDate(dt.getDate() - dt.getDay());
+  dt.setHours(0,0,0,0);
+  return dt;
+}
+
+function changeWeek(dir) {
+  currentWeekStart.setDate(currentWeekStart.getDate() + dir * 7);
+  renderWeek();
+}
+
+function goToday() {
+  currentWeekStart = getWeekStart(new Date());
+  renderWeek();
+  // Scroll to current hour
+  const now = new Date();
+  const scrollEl = document.getElementById('gridScroll');
+  const target = (now.getHours()) * 48;
+  scrollEl.scrollTop = Math.max(0, target - 100);
+}
+
+// ═══════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════
+function renderWeek() {
+  renderHeader();
+  renderGrid();
+  renderEvents();
+  updateWeekLabel();
+  updateStatus();
+}
+
+function renderHeader() {
+  const header = document.getElementById('weekHeader');
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  let html = '<div class="corner">GMT+7</div>';
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(currentWeekStart);
+    d.setDate(d.getDate() + i);
+    const isToday = d.getTime() === today.getTime();
+    html += `<div class="day-col${isToday?' today':''}" onclick="openNewEvent(${i})">
+      <div class="day-name">${DAYS[i]}</div>
+      <div class="day-date">${d.getDate()}/${d.getMonth()+1}</div>
+    </div>`;
+  }
+  header.innerHTML = html;
+}
+
+function renderGrid() {
+  const grid = document.getElementById('weekGrid');
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const todayIdx = today.getDay();
+  const isThisWeek = getWeekStart(today).getTime() === currentWeekStart.getTime();
+
+  let html = '';
+  HOURS.forEach(h => {
+    html += `<div class="time-cell">${String(h).padStart(2,'0')}:00</div>`;
+    for (let d = 0; d < 7; d++) {
+      const isToday = isThisWeek && d === todayIdx;
+      html += `<div class="hour-cell${isToday?' today':''}" data-day="${d}" data-hour="${h}" onclick="openNewEventAt(${d},${h})"></div>`;
+    }
+  });
+  grid.innerHTML = html;
+}
+
+function renderEvents() {
+  // Clear existing event blocks
+  document.querySelectorAll('.event-block').forEach(el => el.remove());
+
+  const weekEnd = new Date(currentWeekStart);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+
+  events.forEach(ev => {
+    // Check if event is in current week (including recurring)
+    const evDate = new Date(ev.date);
+    let showDate = null;
+
+    if (ev.recurring) {
+      // Find matching day in current week
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(currentWeekStart);
+        d.setDate(d.getDate() + i);
+        if (d.getDay() === evDate.getDay()) {
+          showDate = d;
+          break;
+        }
+      }
+    } else {
+      const evDay = new Date(evDate);
+      evDay.setHours(0,0,0,0);
+      const ws = new Date(currentWeekStart);
+      ws.setHours(0,0,0,0);
+      if (evDay.getTime() >= ws.getTime() && evDay.getTime() < ws.getTime() + 7*86400000) {
+        showDate = evDay;
+      }
+    }
+
+    if (!showDate) return;
+
+    const dayIdx = showDate.getDay();
+    const cat = CATEGORIES.find(c => c.id === ev.category) || CATEGORIES[7];
+    const startMin = ev.startHour * 60 + ev.startMin;
+    const endMin = ev.endHour * 60 + ev.endMin;
+    const top = (ev.startHour * 48) + (ev.startMin / 60 * 48);
+    const height = Math.max(20, ((endMin - startMin) / 60) * 48);
+
+    const cell = document.querySelector(`.hour-cell[data-day="${dayIdx}"][data-hour="${ev.startHour}"]`);
+    if (!cell) return;
+
+    const block = document.createElement('div');
+    block.className = 'event-block';
+    block.style.cssText = `top:${top % 48}px;height:${height}px;background:${cat.color}22;border-left-color:${cat.color};color:${cat.color}`;
+    block.innerHTML = `<div class="ev-title">${esc(ev.title)}</div><div class="ev-time">${fmtTime(ev.startHour,ev.startMin)} – ${fmtTime(ev.endHour,ev.endMin)}</div>`;
+    block.onclick = e => { e.stopPropagation(); openEditEvent(ev.id); };
+    block.draggable = true;
+    block.dataset.evid = ev.id;
+    block.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', ev.id));
+
+    cell.style.position = 'relative';
+    cell.appendChild(block);
+  });
+}
+
+function updateWeekLabel() {
+  const end = new Date(currentWeekStart);
+  end.setDate(end.getDate() + 6);
+  const opts = {day:'numeric',month:'short',year:'numeric'};
+  document.getElementById('weekLabel').textContent =
+    `${currentWeekStart.toLocaleDateString('id-ID', opts)} — ${end.toLocaleDateString('id-ID', opts)}`;
+}
+
+function updateStatus() {
+  const count = events.length;
+  document.getElementById('statusEvents').textContent = `${count} event${count!==1?'s':''}`;
+}
+
+// ═══════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════
+function populateFormOptions() {
+  // Days
+  const daySel = document.getElementById('evDay');
+  daySel.innerHTML = DAYS.map((d,i) => `<option value="${i}">${DAYS_ID[i]} (${d})</option>`).join('');
+
+  // Hours
+  const hourOpts = HOURS.map(h => `<option value="${h}">${String(h).padStart(2,'0')}:00</option>`).join('');
+  const halfOpts = HOURS.map(h => `<option value="${h}">${String(h).padStart(2,'0')}:00</option><option value="${h}.5">${String(h).padStart(2,'0')}:30</option>`).join('');
+  document.getElementById('evStart').innerHTML = halfOpts;
+  document.getElementById('evEnd').innerHTML = halfOpts;
+
+  // Colors
+  document.getElementById('colorOptions').innerHTML = CATEGORIES.map(c =>
+    `<div class="color-opt${c.id===selectedCategory?' active':''}" style="background:${c.color}" data-cat="${c.id}" onclick="selectCategory('${c.id}')" title="${c.name}"></div>`
+  ).join('');
+}
+
+function selectCategory(id) {
+  selectedCategory = id;
+  document.querySelectorAll('.color-opt').forEach(el => el.classList.toggle('active', el.dataset.cat === id));
+}
+
+function openNewEvent(dayIdx) {
+  const d = new Date(currentWeekStart);
+  d.setDate(d.getDate() + dayIdx);
+  openModal(d, 9, 0, 10, 0);
+}
+
+function openNewEventAt(dayIdx, hour) {
+  const d = new Date(currentWeekStart);
+  d.setDate(d.getDate() + dayIdx);
+  openModal(d, hour, 0, hour + 1, 0);
+}
+
+function openModal(date, startH, startM, endH, endM) {
+  document.getElementById('evTitle').value = '';
+  document.getElementById('evDay').value = date.getDay();
+  document.getElementById('evStart').value = startH + (startM >= 30 ? 0.5 : 0);
+  document.getElementById('evEnd').value = endH + (endM >= 30 ? 0.5 : 0);
+  document.getElementById('evNotes').value = '';
+  document.getElementById('evRecur').checked = false;
+  document.getElementById('evReminder').checked = false;
+  document.getElementById('evId').value = '';
+  document.getElementById('modalTitle').textContent = 'New Event';
+  document.getElementById('btnDelete').style.display = 'none';
+  selectCategory('work');
+  document.getElementById('modalOverlay').classList.add('show');
+  document.getElementById('evTitle').focus();
+}
+
+function openEditEvent(id) {
+  const ev = events.find(e => e.id === id);
+  if (!ev) return;
+  document.getElementById('evTitle').value = ev.title;
+  document.getElementById('evDay').value = new Date(ev.date).getDay();
+  document.getElementById('evStart').value = ev.startHour + (ev.startMin >= 30 ? 0.5 : 0);
+  document.getElementById('evEnd').value = ev.endHour + (ev.endMin >= 30 ? 0.5 : 0);
+  document.getElementById('evNotes').value = ev.notes || '';
+  document.getElementById('evRecur').checked = ev.recurring || false;
+  document.getElementById('evReminder').checked = ev.reminder || false;
+  document.getElementById('evId').value = id;
+  document.getElementById('modalTitle').textContent = 'Edit Event';
+  document.getElementById('btnDelete').style.display = '';
+  selectCategory(ev.category);
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+function saveEvent() {
+  const title = document.getElementById('evTitle').value.trim();
+  if (!title) return toast('Masukkan judul event');
+
+  const dayIdx = parseInt(document.getElementById('evDay').value);
+  const startVal = parseFloat(document.getElementById('evStart').value);
+  const endVal = parseFloat(document.getElementById('evEnd').value);
+  const startH = Math.floor(startVal);
+  const startM = (startVal % 1) * 60;
+  const endH = Math.floor(endVal);
+  const endM = (endVal % 1) * 60;
+
+  if (endH * 60 + endM <= startH * 60 + startM) return toast('Waktu akhir harus setelah waktu mulai');
+
+  const evDate = new Date(currentWeekStart);
+  evDate.setDate(evDate.getDate() + dayIdx);
+
+  const existingId = document.getElementById('evId').value;
+  if (existingId) {
+    // Update
+    const idx = events.findIndex(e => e.id === existingId);
+    if (idx >= 0) {
+      events[idx] = {...events[idx], title, date: evDate.toISOString(), startHour: startH, startMin: startM, endHour: endH, endMin: endM, category: selectedCategory, notes: document.getElementById('evNotes').value, recurring: document.getElementById('evRecur').checked, reminder: document.getElementById('evReminder').checked};
+    }
+  } else {
+    // New
+    events.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      title, date: evDate.toISOString(), startHour: startH, startMin: startM, endHour: endH, endMin: endM,
+      category: selectedCategory, notes: document.getElementById('evNotes').value,
+      recurring: document.getElementById('evRecur').checked, reminder: document.getElementById('evReminder').checked
+    });
+  }
+
+  saveEvents();
+  closeModal();
+  renderWeek();
+  toast(existingId ? 'Event updated' : 'Event added');
+}
+
+function deleteEvent() {
+  const id = document.getElementById('evId').value;
+  if (!id) return;
+  events = events.filter(e => e.id !== id);
+  saveEvents();
+  closeModal();
+  renderWeek();
+  toast('Event deleted');
+}
+
+// ═══════════════════════════════════════
+// DRAG & DROP
+// ═══════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    e.preventDefault();
+    const evId = e.dataTransfer.getData('text/plain');
+    const cell = e.target.closest('.hour-cell');
+    if (!evId || !cell) return;
+    const day = parseInt(cell.dataset.day);
+    const hour = parseInt(cell.dataset.hour);
+    const ev = events.find(e => e.id === evId);
+    if (!ev) return;
+    const newDate = new Date(currentWeekStart);
+    newDate.setDate(newDate.getDate() + day);
+    const duration = (ev.endHour * 60 + ev.endMin) - (ev.startHour * 60 + ev.startMin);
+    ev.date = newDate.toISOString();
+    ev.startHour = hour;
+    ev.startMin = 0;
+    ev.endHour = Math.floor((hour * 60 + duration) / 60);
+    ev.endMin = (hour * 60 + duration) % 60;
+    saveEvents();
+    renderWeek();
+    toast('Event moved');
+  });
+});
+
+// ═══════════════════════════════════════
+// REMINDERS
+// ═══════════════════════════════════════
+function checkReminders() {
+  const now = new Date();
+  events.forEach(ev => {
+    if (!ev.reminder) return;
+    const evDate = new Date(ev.date);
+    const target = new Date(evDate);
+    target.setHours(ev.startHour, ev.startMin - 5, 0, 0);
+    const diff = target - now;
+    if (diff > 0 && diff < 60000) {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('MiMoPlanner', {body: `${ev.title} dalam 5 menit!`, icon: '📅'});
+      }
+      toast(`⏰ ${ev.title} dalam 5 menit!`);
+    }
+  });
+}
+
+// Request notification permission
+if ('Notification' in window && Notification.permission === 'default') {
+  Notification.requestPermission();
+}
+
+// ═══════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════
+function saveEvents() { localStorage.setItem('mimoplanner-events', JSON.stringify(events)); }
+function loadEvents() { try { events = JSON.parse(localStorage.getItem('mimoplanner-events')) || []; } catch(e) { events = []; } }
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(events, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'mimoplanner-events.json';
+  a.click();
+  toast('Exported');
+}
+
+function importJSON() { document.getElementById('importFile').click(); }
+function handleImport(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (Array.isArray(imported)) {
+        events = imported;
+        saveEvents();
+        renderWeek();
+        toast(`Imported ${imported.length} events`);
+      }
+    } catch(err) { toast('Invalid JSON'); }
+  };
+  reader.readAsText(file);
+}
+
+function clearAll() {
+  if (!confirm('Hapus semua events?')) return;
+  events = [];
+  saveEvents();
+  renderWeek();
+  toast('All cleared');
+}
+
+// ═══════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════
+function fmtTime(h, m) { return `${String(h).padStart(2,'0')}:${String(Math.round(m)).padStart(2,'0')}`; }
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function toggleTheme() {
+  const h = document.documentElement;
+  h.dataset.theme = h.dataset.theme === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('mimo-theme', h.dataset.theme);
+}
+const t = localStorage.getItem('mimo-theme');
+if (t) document.documentElement.dataset.theme = t;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 1500);
+}
+
+init();
+</script>
+</body>
+</html>
